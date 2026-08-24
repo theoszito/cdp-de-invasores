@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDP DE INVASORES</title>
+<style>
+*{box-sizing:border-box}
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#090b10;
+color:white;
+min-height:100vh
+}
+header{
+padding:32px 18px 20px;
+text-align:center
+}
+h1{
+margin:0;
+font-size:clamp(28px,7vw,48px);
+letter-spacing:2px
+}
+.subtitle{
+color:#9da5b4;
+margin-top:8px
+}
+.container{
+width:min(900px,92%);
+margin:auto
+}
+.card{
+background:#11151d;
+border:1px solid #252c38;
+border-radius:18px;
+padding:20px
+}
+.form{
+display:flex;
+gap:10px
+}
+input{
+flex:1;
+padding:15px;
+border-radius:12px;
+border:1px solid #303846;
+background:#0b0e14;
+color:white;
+font-size:16px;
+outline:none
+}
+button{
+border:0;
+border-radius:12px;
+padding:0 22px;
+background:#5865f2;
+color:white;
+font-weight:bold;
+cursor:pointer
+}
+.search{
+margin:20px 0 12px;
+width:100%
+}
+.list{
+display:grid;
+gap:10px
+}
+.item{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:15px;
+padding:16px;
+border-radius:13px;
+background:#171c25;
+border:1px solid #252c38
+}
+.name{
+font-weight:bold
+}
+.timer{
+font-variant-numeric:tabular-nums;
+color:#cbd2df
+}
+.item.done{
+border-color:#23834a;
+background:#102219
+}
+.item.done .name,
+.item.done .timer{
+color:#3ee477
+}
+.empty{
+text-align:center;
+color:#858e9f;
+padding:25px
+}
+@media(max-width:600px){
+.form{
+flex-direction:column
+}
+button{
+height:48px
+}
+.item{
+align-items:flex-start;
+flex-direction:column
+}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>CDP DE INVASORES</h1>
+<div class="subtitle">
+Controle de nomes com contagem regressiva de 5 horas
+</div>
+</header>
+
+<main class="container">
+
+<section class="card">
+
+<form id="form" class="form">
+
+<input
+id="nameInput"
+maxlength="40"
+placeholder="Digite o nome..."
+autocomplete="off"
+>
+
+<button type="submit">
+ADICIONAR
+</button>
+
+</form>
+
+<div id="message"></div>
+
+<input
+id="search"
+class="search"
+placeholder="Pesquisar por nome..."
+autocomplete="off"
+>
+
+<div id="list" class="list"></div>
+
+</section>
+
+</main>
+
+<script>
+
+const form=document.getElementById("form");
+const input=document.getElementById("nameInput");
+const search=document.getElementById("search");
+const list=document.getElementById("list");
+const message=document.getElementById("message");
+
+let names=[];
+
+async function loadNames(){
+
+const res=await fetch("/api/names");
+
+names=await res.json();
+
+render();
+
+}
+
+function formatTime(ms){
+
+if(ms<=0)return"FINALIZADO";
+
+const total=Math.floor(ms/1000);
+
+const h=Math.floor(total/3600);
+const m=Math.floor((total%3600)/60);
+const s=total%60;
+
+return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+
+}
+
+function render(){
+
+const q=search.value.trim().toLowerCase();
+
+const filtered=names.filter(x =>
+x.name.toLowerCase().includes(q)
+);
+
+if(!filtered.length){
+
+list.innerHTML='<div class="empty">Nenhum nome encontrado.</div>';
+
+return;
+
+}
+
+list.innerHTML=filtered.map(x=>{
+
+const done=x.expires_at<=Date.now();
+
+return `
+<div class="item ${done?"done":""}">
+
+<div class="name">
+${escapeHtml(x.name)}
+</div>
+
+<div class="timer" data-exp="${x.expires_at}">
+${formatTime(x.expires_at-Date.now())}
+</div>
+
+</div>
+`;
+
+}).join("");
+
+}
+
+function escapeHtml(str){
+
+return str.replace(/[&<>"']/g,c=>({
+
+"&":"&amp;",
+"<":"&lt;",
+">":"&gt;",
+'"':"&quot;",
+"'":"&#039;"
+
+}[c]));
+
+}
+
+form.addEventListener("submit",async e=>{
+
+e.preventDefault();
+
+const name=input.value.trim();
+
+if(!name)return;
+
+message.textContent="";
+
+const res=await fetch("/api/names",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({name})
+
+});
+
+const data=await res.json();
+
+if(!res.ok){
+
+message.textContent=data.error||"Erro.";
+
+return;
+
+}
+
+input.value="";
+
+await loadNames();
+
+});
+
+search.addEventListener("input",render);
+
+setInterval(()=>{
+
+document.querySelectorAll(".timer").forEach(el=>{
+
+const remaining=Number(el.dataset.exp)-Date.now();
+
+el.textContent=formatTime(remaining);
+
+const item=el.closest(".item");
+
+if(remaining<=0){
+item.classList.add("done");
+}
+
+});
+
+},1000);
+
+loadNames();
+
+</script>
+
+</body>
+  </html>
